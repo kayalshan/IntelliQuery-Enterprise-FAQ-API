@@ -1,11 +1,12 @@
 package com.sonata.faqapi.dto;
 
+import java.time.Instant;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
-
-import java.time.Instant;
 
 @Data
 @Builder
@@ -13,7 +14,7 @@ import java.time.Instant;
 @Schema(description = "FAQ answer response payload")
 public class QuestionResponse {
 
-   
+
 
 	@Schema(description = "The original question asked")
     private String question;
@@ -43,5 +44,5 @@ public class QuestionResponse {
 		this.timestamp = timestamp;
 		this.requestId = requestId;
 	}
-    
+
 }

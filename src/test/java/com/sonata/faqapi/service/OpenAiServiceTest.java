@@ -1,16 +1,13 @@
 package com.sonata.faqapi.service;
 
-import com.sonata.faqapi.config.OpenAiProperties;
-import com.sonata.faqapi.exception.OpenAiException;
-import com.sonata.faqapi.service.OpenAiService;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.*;
+import com.sonata.faqapi.config.OpenAiProperties;
 
 @ExtendWith(MockitoExtension.class)
 class OpenAiServiceTest {

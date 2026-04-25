@@ -36,6 +36,6 @@ public class QuestionRequest {
 	public void setContext(String context) {
 		this.context = context;
 	}
-    
-    
+
+
 }

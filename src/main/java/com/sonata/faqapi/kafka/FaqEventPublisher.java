@@ -1,11 +1,6 @@
 package com.sonata.faqapi.kafka;
 
-import com.sonata.faqapi.config.KafkaConfig;
-import com.sonata.faqapi.health.OpenAiHealthIndicator;
-import com.sonata.faqapi.model.FaqEvent;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +9,11 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.CompletableFuture;
+import com.sonata.faqapi.config.KafkaConfig;
+import com.sonata.faqapi.model.FaqEvent;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component

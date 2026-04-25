@@ -1,12 +1,13 @@
 package com.sonata.faqapi.dto;
 
+import java.time.Instant;
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
-
-import java.time.Instant;
-import java.util.List;
 
 @Data
 @Builder
@@ -34,10 +35,10 @@ public class ErrorResponse {
 
     @Schema(description = "Unique request ID for tracing")
     private String requestId;
-    
-   
-    
-   
+
+
+
+
 
 
 	public ErrorResponse(int status, String error, String message, String path, Instant timestamp,
@@ -141,7 +142,7 @@ public class ErrorResponse {
 	@Data
     @Builder
     public static class FieldError {
-        
+
 		public FieldError(String field, String message, Object rejectedValue) {
 			super();
 			this.field = field;

@@ -10,7 +10,6 @@ import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
 import com.sonata.faqapi.config.CacheConfig;
-import com.sonata.faqapi.controller.FaqController;
 import com.sonata.faqapi.dto.QuestionRequest;
 import com.sonata.faqapi.dto.QuestionResponse;
 import com.sonata.faqapi.kafka.FaqEventPublisher;
@@ -85,8 +84,9 @@ public class FaqService {
 	private boolean isCacheHit(String normalizedQuestion) {
 		try {
 			Cache cache = cacheManager.getCache(CacheConfig.FAQ_CACHE);
-			if (cache == null)
+			if (cache == null) {
 				return false;
+			}
 			return cache.get(normalizedQuestion) != null;
 		} catch (Exception e) {
 			log.warn("Could not check cache status: {}", e.getMessage());
@@ -100,7 +100,7 @@ public class FaqService {
 //				.eventType(cached ? FaqEvent.EventType.CACHE_HIT : FaqEvent.EventType.ANSWER_DELIVERED)
 //				.question(request.getQuestion()).answer(answer).cached(cached).latencyMs(latencyMs)
 //				.occurredAt(Instant.now()).build();
-		
+
 		FaqEvent event = new FaqEvent(
 		        requestId,
 		        cached ? FaqEvent.EventType.CACHE_HIT : FaqEvent.EventType.ANSWER_DELIVERED,

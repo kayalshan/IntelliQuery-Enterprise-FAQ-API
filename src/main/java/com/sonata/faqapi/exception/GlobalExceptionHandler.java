@@ -1,11 +1,8 @@
 package com.sonata.faqapi.exception;
 
-import com.sonata.faqapi.dto.ErrorResponse;
-import com.sonata.faqapi.health.OpenAiHealthIndicator;
-
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +13,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
+import com.sonata.faqapi.dto.ErrorResponse;
+
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestControllerAdvice
@@ -63,7 +62,7 @@ public class GlobalExceptionHandler {
                 fieldErrors,
                 UUID.randomUUID().toString()
         );
-        
+
         log.warn("Validation error on {}: {}", request.getRequestURI(), fieldErrors);
         return ResponseEntity.badRequest().body(error);
     }
