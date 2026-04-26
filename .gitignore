@@ -1,12 +1,1 @@
-target/
-*.class
-*.jar
-*.war
-*.ear
-*.log
-.env
-.DS_Store
-.idea/
-*.iml
-.vscode/
-*.swp
+/target/
