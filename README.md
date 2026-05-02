@@ -180,21 +180,6 @@ For the full configuration reference, see `src/main/resources/application.yml`.
 ```
 ---
 
-## Kafka — KRaft Mode
- 
-Kafka runs in **KRaft mode** — Zookeeper is not used. Three listeners are configured:
- 
-| Listener | Port | Used by |
-|---|---|---|
-| `PLAINTEXT` | `9092` | Spring Boot app inside Docker |
-| `EXTERNAL` | `9094` | Host machine / external tools (kafkacat, etc.) |
-| `CONTROLLER` | `9093` | KRaft internal consensus — not exposed |
- 
-Connect from your host machine using `localhost:9094`. The app container connects internally via `kafka:9092` — no changes to `application.yml` are needed.
- 
----
-
-
 ## Development
 
 ```bash

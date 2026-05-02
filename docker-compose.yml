@@ -1,171 +1,199 @@
-# ─────────────────────────────────────────────
-# IntelliQuery — Local Development Stack
-# Kafka runs in KRaft mode (no Zookeeper)
-# ─────────────────────────────────────────────
+# ==========================================
+# FAQ API - Full Stack with Observability
+# ==========================================
+
+networks:
+  faq-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
 
 services:
 
-  # ── APPLICATION ───────────────────────────────
-  app:
+  # ── Application ─────────────────────────
+  faq-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: intelliquery-app
+      target: runtime
+    container_name: faq-api
+    restart: unless-stopped
     ports:
       - "8080:8080"
+
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      APP_API_KEY: ${APP_API_KEY:-changeme-in-production}
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+
+      # IMPORTANT FIX → internal Kafka listener
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      APP_API_KEY: ${APP_API_KEY:-changeme-dev}
+
+      JAVA_OPTS: >-
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+        -XX:+UseZGC
+        -Dspring.profiles.active=dev
+
     depends_on:
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - intelliquery-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
 
-  # ── REDIS ─────────────────────────────────────
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+    networks:
+      - faq-net
+
+  # ── Redis ───────────────────────────────
   redis:
-    image: redis:7-alpine
-    container_name: intelliquery-redis
+    image: redis:7.2-alpine
+    container_name: faq-redis
+    restart: unless-stopped
+
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+
     ports:
       - "6379:6379"
+
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
-    networks:
-      - intelliquery-net
+
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
-  # ── KAFKA (KRaft — no Zookeeper) ──────────────
-  kafka:
-    image: bitnami/kafka:3.7
-    container_name: intelliquery-kafka
-    ports:
-      - "9092:9092"   # external (host → container)
-      - "9094:9094"   # internal (container → container)
-    environment:
-      # KRaft cluster identity
-      KAFKA_CFG_NODE_ID: 1
-      KAFKA_CFG_PROCESS_ROLES: broker,controller
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-
-      # Listeners
-      # PLAINTEXT  → used by the Spring Boot app inside Docker
-      # EXTERNAL   → used when connecting from your host machine
-      # CONTROLLER → internal KRaft consensus (never exposed)
-      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:9094,CONTROLLER://:9093
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-
-      # Topic defaults
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_CFG_NUM_PARTITIONS: 3
-
-      # Allow plaintext (dev only — use TLS in production)
-      ALLOW_PLAINTEXT_LISTENER: "yes"
-    volumes:
-      - kafka-data:/bitnami/kafka
-    restart: unless-stopped
     networks:
-      - intelliquery-net
+      - faq-net
+
+  # ── Zookeeper ───────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: faq-zookeeper
+    restart: unless-stopped
+
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+    networks:
+      - faq-net
+
+  # ── Kafka ───────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: faq-kafka
+    restart: unless-stopped
+
+    depends_on:
+      - zookeeper
+
+    ports:
+      - "9092:9092"
+
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+
+      # Internal Docker communication
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+
+      # External access from localhost
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
     healthcheck:
-      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 15s
       timeout: 10s
-      retries: 10
+      retries: 5
       start_period: 30s
 
-  # ── KAFKA UI ──────────────────────────────────
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: intelliquery-kafka-ui
-    ports:
-      - "8081:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: intelliquery-local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-    depends_on:
-      kafka:
-        condition: service_healthy
-    restart: unless-stopped
     networks:
-      - intelliquery-net
+      - faq-net
 
-  # ── PROMETHEUS ────────────────────────────────
+  # ── Prometheus ──────────────────────────
   prometheus:
-    image: prom/prometheus:v2.51.0
-    container_name: intelliquery-prometheus
+    image: prom/prometheus:v2.50.1
+    container_name: faq-prometheus
+    restart: unless-stopped
+
     ports:
       - "9090:9090"
+
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    restart: unless-stopped
-    networks:
-      - intelliquery-net
 
-  # ── GRAFANA ───────────────────────────────────
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+
+    networks:
+      - faq-net
+
+  # ── Grafana ─────────────────────────────
   grafana:
-    image: grafana/grafana:10.4.0
-    container_name: intelliquery-grafana
+    image: grafana/grafana:10.4.2
+    container_name: faq-grafana
+    restart: unless-stopped
+
     ports:
       - "3000:3000"
+
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+
     depends_on:
       - prometheus
-    restart: unless-stopped
+
     networks:
-      - intelliquery-net
+      - faq-net
 
-# ─────────────────────────────────────────────
-# VOLUMES
-# ─────────────────────────────────────────────
-volumes:
-  redis-data:
-    driver: local
-  kafka-data:
-    driver: local
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
+  # ── Kafka UI ────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: faq-kafka-ui
+    restart: unless-stopped
 
-# ─────────────────────────────────────────────
-# NETWORKS
-# ─────────────────────────────────────────────
-networks:
-  intelliquery-net:
-    driver: bridge
+    ports:
+      - "8081:8080"
+
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    networks:
+      - faq-net
