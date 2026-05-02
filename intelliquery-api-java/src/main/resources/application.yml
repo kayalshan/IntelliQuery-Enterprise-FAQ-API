@@ -1,0 +1,195 @@
+# ==========================================
+# FAQ API - Application Configuration
+# ==========================================
+
+server:
+  port: 8080
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json
+  error:
+    include-message: never
+    include-stacktrace: never
+    whitelabel:
+      enabled: false
+
+spring:
+  application:
+    name: faq-api
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 2s
+
+  # Cache
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600s
+      key-prefix: "faqapi:"
+      use-key-prefix: true
+
+  # Kafka
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+
+  # Jackson
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+# OpenAI
+openai:
+  api-key: ${OPENAI_API_KEY}
+  api-url: https://api.openai.com/v1/chat/completions
+  model: gpt-4
+  max-tokens: 300
+  temperature: 0.7
+  system-prompt: >
+    You are a helpful FAQ assistant for a product called SuperWidget.
+    Provide concise, accurate, and helpful answers.
+    If you don't know the answer, say so clearly and suggest contacting support.
+  connect-timeout-seconds: 5
+  read-timeout-seconds: 30
+
+# App security
+app:
+  security:
+    api-key: ${OPENAI_API_KEY}
+
+# Actuator / Observability
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,caches
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+  health:
+    redis:
+      enabled: true
+    kafka:
+      enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        faq.openai.request: true
+        http.server.requests: true
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+
+# SpringDoc / Swagger
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    tags-sorter: alpha
+
+# Resilience4j
+resilience4j:
+  circuitbreaker:
+    instances:
+      openai:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        slow-call-rate-threshold: 80
+        slow-call-duration-threshold: 10s
+        register-health-indicator: true
+  retry:
+    instances:
+      openai:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - com.sonata.faqapi.exception.OpenAiException
+        ignore-exceptions:
+          - com.sonata.faqapi.exception.RateLimitExceededException
+
+# Logging
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.example.faqapi: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.springframework.cache: DEBUG
+    org.springframework.kafka: WARN
+
+---
+# ==========================================
+# Development Profile
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    com.example.faqapi: DEBUG
+    org.springframework.cache: DEBUG
+
+---
+# ==========================================
+# Test Profile
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: test
+
+openai:
+  api-key: test-key
+  api-url: http://localhost:8089/v1/chat/completions
+
+app:
+  security:
+    api-key: test-api-key
+
+logging:
+  level:
+    com.example.faqapi: DEBUG
